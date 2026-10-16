@@ -42,13 +42,17 @@ if(ANDROID)
     set(LIBERTY_RECOMP_GRAINE_ANDROID ON)
 endif()
 
+# Linux can consume the same pure Graine RexGlue application (gta4_native
+# renderer) instead of the legacy LibertyRecomp/ tree.
+option(LIBERTY_RECOMP_GRAINE_LINUX "Build the Graine RexGlue consumer on Linux" OFF)
+
 if(NOT LIBERTY_RECOMP_GRAINE_MAC)
     add_compile_definitions(FMT_USE_CONSTEVAL=0)
 endif()
 
 # ─── vcpkg check (desktop platforms only) ──────────────────────────────────
 # Mobile/console platforms use system SDKs and don't need vcpkg
-if(NOT LIBERTY_RECOMP_GRAINE_MAC AND
+if(NOT LIBERTY_RECOMP_GRAINE_MAC AND NOT LIBERTY_RECOMP_GRAINE_LINUX AND
    (NOT DEFINED LIBERTY_RECOMP_TARGET_PLATFORM OR
     LIBERTY_RECOMP_TARGET_PLATFORM STREQUAL "desktop"))
     if(NOT DEFINED ENV{VCPKG_ROOT})
@@ -197,6 +201,12 @@ endif()
 
 if(LIBERTY_RECOMP_GRAINE_ANDROID)
     message(STATUS "Android: building the pure Graine RexGlue consumer")
+    add_subdirectory("glue")
+    return()
+endif()
+
+if(LIBERTY_RECOMP_GRAINE_LINUX)
+    message(STATUS "Linux: building the pure Graine RexGlue consumer")
     add_subdirectory("glue")
     return()
 endif()

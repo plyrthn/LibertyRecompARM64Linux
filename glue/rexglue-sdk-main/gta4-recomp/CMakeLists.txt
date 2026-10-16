@@ -443,6 +443,67 @@ elseif(ANDROID)
             -Wno-backend-plugin)
         target_link_options(LibertyRecomp PRIVATE "-fprofile-use=${LIBERTY_ANDROID_PGO}")
     endif()
+elseif(UNIX AND NOT APPLE AND LIBERTY_RECOMP_GRAINE_LINUX)
+    set(GTA4_LINUX_SOURCES ${GTA4_APP_SOURCES})
+    list(REMOVE_ITEM GTA4_LINUX_SOURCES src/network/community_multiplayer.cpp)
+
+    add_executable(LibertyRecomp
+        ${GTA4_LINUX_SOURCES}
+        src/android/android_platform_stubs.cpp
+        ${GENERATED_SOURCES}
+    )
+
+    set_property(SOURCE generated/gta4_register.cpp APPEND PROPERTY COMPILE_OPTIONS
+        "$<$<CONFIG:Release,RelWithDebInfo>:-O0>")
+
+    target_include_directories(LibertyRecomp PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/generated
+        ${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/crypto
+        ${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/imgui
+        ${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/inja/third_party/include
+    )
+    set_property(SOURCE src/gta4_native_hooks.cpp APPEND PROPERTY INCLUDE_DIRECTORIES
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+
+    set_source_files_properties(src/gta4_sony_feedback.cpp src/gta4_sony_event_hooks.cpp
+        PROPERTIES COMPILE_DEFINITIONS GTA4_SONY_PRIMARY_PLAYER_ALIAS)
+
+    target_compile_definitions(LibertyRecomp PRIVATE
+        GTA4_TOUCH_PRIMARY_PLAYER_ALIAS=1
+        GTA4_RECOMP_ASSET_XEX="${CMAKE_CURRENT_SOURCE_DIR}/assets/default_v8.xex"
+        GTA4_BUTTON_PROMPT_ASSET_ROOT="${LIBERTY_RECOMP_WORKSPACE_ROOT}/LibertyRecompLib/private/button_prompts"
+        GTA4_RPF_AES_KEY_SOURCE="${LIBERTY_RECOMP_WORKSPACE_ROOT}/LibertyRecompLib/aes_key.bin"
+    )
+
+    target_link_libraries(LibertyRecomp PRIVATE
+        rex::runtime
+        xxHash::xxhash
+        SDL3::SDL3
+        utf8cpp
+        z
+    )
+
+    rexglue_configure_target(LibertyRecomp GPU_PLUGINS xenos gta4-native)
+    target_sources(LibertyRecomp PRIVATE
+        src/android/android_frame_wait_hook.cpp
+        src/android/android_stale_object_guard.cpp)
+    target_link_options(LibertyRecomp PRIVATE "-Wl,-Bsymbolic-functions")
+    target_compile_options(LibertyRecomp PRIVATE -O3)
+    option(LIBERTY_LINUX_THINLTO "ThinLTO for the recompiled game on Linux" OFF)
+    if(LIBERTY_LINUX_THINLTO)
+        target_compile_options(LibertyRecomp PRIVATE -flto=thin)
+        target_link_options(LibertyRecomp PRIVATE -flto=thin "-Wl,--thinlto-jobs=6"
+            "-Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/thinlto-cache")
+    endif()
+    set(LIBERTY_LINUX_SYMBOL_ORDER "${CMAKE_CURRENT_SOURCE_DIR}/android_symbol_order.txt")
+    if(EXISTS "${LIBERTY_LINUX_SYMBOL_ORDER}")
+        target_link_options(LibertyRecomp PRIVATE
+            "-Wl,--symbol-ordering-file=${LIBERTY_LINUX_SYMBOL_ORDER}"
+            "-Wl,--no-warn-symbol-ordering")
+        set_property(TARGET LibertyRecomp APPEND PROPERTY LINK_DEPENDS "${LIBERTY_LINUX_SYMBOL_ORDER}")
+    endif()
+    target_compile_definitions(LibertyRecomp PRIVATE REX_FUSED_VMADDFP=1)
 else()
     add_library(gta4_recomp INTERFACE)
     target_include_directories(gta4_recomp INTERFACE

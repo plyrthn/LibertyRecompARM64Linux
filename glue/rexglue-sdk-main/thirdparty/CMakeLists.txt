@@ -678,6 +678,7 @@ endif()
 if(IS_ARM64)
     target_sources(libavcodec PRIVATE
         ${FFMPEG_DIR}/libavcodec/aarch64/fft_init_aarch64.c
+        ${FFMPEG_DIR}/libavcodec/aarch64/idctdsp_init_aarch64.c
         ${FFMPEG_DIR}/libavcodec/aarch64/fft_neon.S
         ${FFMPEG_DIR}/libavcodec/aarch64/mdct_neon.S
         ${FFMPEG_DIR}/libavcodec/aarch64/simple_idct_neon.S

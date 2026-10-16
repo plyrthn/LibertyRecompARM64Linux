@@ -139,7 +139,7 @@ endif()
 # and FP-exception awareness, which blocks reordering and vectorization of the
 # renderer's float code; guest FP semantics live in the generated code, which
 # never had it. Contract off still forbids fusing into FMA.
-if(ANDROID)
+if(ANDROID OR LIBERTY_RECOMP_GRAINE_LINUX)
     add_compile_options(-ffp-contract=off $<$<CONFIG:RELWITHDEBINFO>:-O3>)
 else()
     add_compile_options(-ffp-model=strict)
