@@ -314,8 +314,14 @@ bool XThread::AllocateStack(uint32_t size) {
   memory()->Fill(stack_alloc_base_, actual_size, 0xBE);
 
   // Setup the guard pages
+#if REX_PLATFORM_LINUX
+  // guest string/copy helpers run past the ends of stack buffers, keep both guards accessible
+  heap->Protect(stack_alloc_base_, padding / 2, memory::kMemoryProtectRead | memory::kMemoryProtectWrite);
+  heap->Protect(stack_base_, padding / 2, memory::kMemoryProtectRead | memory::kMemoryProtectWrite);
+#else
   heap->Protect(stack_alloc_base_, padding / 2, memory::kMemoryProtectNoAccess);
   heap->Protect(stack_base_, padding / 2, memory::kMemoryProtectNoAccess);
+#endif
 
   return true;
 }

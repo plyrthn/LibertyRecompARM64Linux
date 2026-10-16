@@ -6,7 +6,14 @@
 // a crash on an unmapped page inside this function. When the object's
 // pointer chain no longer leads to mapped memory, take the title's own
 // no-object path rather than fault.
+#ifdef __ANDROID__
 #include <android/log.h>
+#else
+#include <cstdio>
+#define ANDROID_LOG_WARN 5
+#define __android_log_print(prio, tag, ...) \
+  (std::fprintf(stderr, "[%s] ", tag), std::fprintf(stderr, __VA_ARGS__), std::fputc(10, stderr))
+#endif
 
 #include <atomic>
 #include <cstdint>

@@ -203,6 +203,9 @@ bool ReXApp::SetupEnvironment() {
 #endif
   }
 
+#if REX_PLATFORM_LINUX
+  log_config.log_to_console = true;
+#endif
   rex::InitLogging(log_config);
   rex::RegisterLogLevelCallback();
 

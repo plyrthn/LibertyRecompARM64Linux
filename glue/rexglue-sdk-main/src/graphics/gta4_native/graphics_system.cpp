@@ -6,6 +6,19 @@
 #if defined(__ANDROID__)
 #include <android/log.h>
 #include <pthread.h>
+#elif REX_PLATFORM_LINUX
+#define ANDROID_LOG_WARN 5
+#include <cstdarg>
+#include <cstdio>
+static inline void GtaLinuxPerfLog(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  std::fputs("[PERF] ", stderr);
+  std::vfprintf(stderr, format, args);
+  std::fputc(10, stderr);
+  va_end(args);
+}
+#define __android_log_print(prio, tag, ...) GtaLinuxPerfLog(__VA_ARGS__)
 #endif
 #include "native_pipeline_stats.h"
 #include "native_gpu_counters.h"
@@ -658,7 +671,7 @@ void LogFrameTimeline(uint32_t frame) {
     batch += fmt::format(",{}", value ? int64_t(value - guest) / 1000 : -1);
   }
   if (++batched == 8) {
-#if REX_PLATFORM_ANDROID
+#if REX_PLATFORM_ANDROID || REX_PLATFORM_LINUX
     __android_log_print(ANDROID_LOG_WARN, "LibertyRecomp", "frame-timeline:%s", batch.c_str());
 #endif
     batch.clear();
@@ -6319,7 +6332,7 @@ void Gta4NativeGraphicsSystem::RenderWorkerMain() {
   bool startup_present_follows_texture_lock_flush = false;
   auto log_frame_batch = [this](std::string_view boundary, const NativeCommand& boundary_command,
                                 uint32_t submitted_frame, size_t queued_after_boundary) {
-#if REX_PLATFORM_ANDROID
+#if REX_PLATFORM_ANDROID || REX_PLATFORM_LINUX
     {
       // TEMP: per-frame draw census by render target size (perf investigation).
       static uint64_t last_report = 0;
@@ -6984,7 +6997,7 @@ void Gta4NativeGraphicsSystem::RenderWorkerMain() {
           recording_environmental_data_by_device_ = environmental_data_by_device_;
           assembly_modern_frame_pending_ = false;
           log_frame_batch("present", command, present.submitted_frame, queued_after_pop);
-#if REX_PLATFORM_ANDROID
+#if REX_PLATFORM_ANDROID || REX_PLATFORM_LINUX
           // TEMP: pipeline stall telemetry (perf investigation).
           if (++pipeline_report_frames_ == 120) {
             const double ms_per_tick = 1000.0 / double(rex::chrono::Clock::QueryHostTickFrequency());
@@ -7345,13 +7358,19 @@ void Gta4NativeGraphicsSystem::UpdateDynamicDrawDistance() {
     dynamic_draw_distance_window_frames_ = 0;
     dynamic_draw_distance_window_ms_ = 0.0;
     ++dynamic_draw_distance_windows_since_drop_;
-    if (fps[0] < 27.0 && fps[1] < 27.0) {
+    double target = 30.0;
+    try {
+      const double limit = std::stod(rex::cvar::GetFlagByName("gta4_frame_limit"));
+      if (limit >= 20.0) target = limit;
+    } catch (...) {
+    }
+    if (fps[0] < target * 0.9 && fps[1] < target * 0.9) {
       if (dynamic_draw_distance_windows_since_drop_ >= 2) {
         factor -= 0.05;
         dynamic_draw_distance_windows_since_drop_ = 0;
       }
     } else if (dynamic_draw_distance_windows_since_drop_ >= 10 &&
-               (fps[0] + fps[1] + fps[2]) / 3.0 >= 28.5) {
+               (fps[0] + fps[1] + fps[2]) / 3.0 >= target * 0.95) {
       factor += 0.02;
     }
   }
@@ -16284,7 +16303,7 @@ bool Gta4NativeGraphicsSystem::CreateNativeDescriptors() {
     VkPhysicalDeviceProperties physical_properties{};
     vulkan_device->vulkan_instance()->functions().vkGetPhysicalDeviceProperties(
         vulkan_device->physical_device(), &physical_properties);
-#if REX_PLATFORM_ANDROID
+#if REX_PLATFORM_ANDROID || REX_PLATFORM_LINUX
     __android_log_print(ANDROID_LOG_WARN, "LibertyRecomp",
                         "limits: maxBoundDescriptorSets=%u maxDescriptorSetUniformBuffersDynamic=%u "
                         "minUniformBufferOffsetAlignment=%llu maxUniformBufferRange=%u ubo-layout=%d",
@@ -18714,7 +18733,8 @@ Gta4NativeGraphicsSystem::NativeTextureImage* Gta4NativeGraphicsSystem::GetOrCre
     view_info.components.b = VK_COMPONENT_SWIZZLE_ONE;
     view_info.components.a = VK_COMPONENT_SWIZZLE_R;
   } else if (vulkan_device->properties().portabilitySubset ||
-             !vulkan_device->properties().imageViewFormatSwizzle || REX_PLATFORM_ANDROID) {
+             !vulkan_device->properties().imageViewFormatSwizzle || REX_PLATFORM_ANDROID ||
+             REX_PLATFORM_LINUX) {
     // Ordinary native portability views deliberately retain the established
     // identity policy even when font-only swizzle support is enabled.
     // Android follows the same policy: the native renderer and its shader
